@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Boundary Compiler</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a40;
+    --border-bright: #4040aa;
+    --text: #e8e8f5;
+    --text-muted: #7070a0;
+    --text-dim: #404060;
+    --accent: #6c63ff;
+    --accent-glow: rgba(108,99,255,0.25);
+    --green: #00e5a0;
+    --green-dim: rgba(0,229,160,0.12);
+    --red: #ff4f6a;
+    --red-dim: rgba(255,79,106,0.12);
+    --amber: #ffa940;
+    --amber-dim: rgba(255,169,64,0.12);
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(108,99,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(108,99,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto 1fr;
+    gap: 16px;
+    min-height: 100vh;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .logo-text {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .header-clock {
+    text-align: right;
+  }
+
+  #clock-time {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  #clock-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+  }
+
+  .panel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .panel-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .panel-dot.red   { background: var(--red); }
+  .panel-dot.amber { background: var(--amber); }
+
+  .panel-title {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-left: 4px;
+  }
+
+  .compiler-panel {
+    grid-column: 1 / -1;
+  }
+
+  .input-area {
+    padding: 16px;
+  }
+
+  .input-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  #rule-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  #rule-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  #rule-input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .compile-btn {
+    padding: 12px 24px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+    white-space: nowrap;
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  .compile-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 24px var(--accent-glow); }
+  .compile-btn:active { transform: translateY(0); }
+
+  .examples {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .example-chip {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .example-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .phases-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .phase-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .phase-panel.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .phase-panel.success { border-color: var(--green); box-shadow: 0 0 16px var(--green-dim); }
+  .phase-panel.error   { border-color: var(--red);   box-shadow: 0 0 16px var(--red-dim); }
+
+  .phase-num {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .phase-name {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .phase-body {
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    min-height: 120px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .phase-body::-webkit-scrollbar { width: 4px; }
+  .phase-body::-webkit-scrollbar-track { background: transparent; }
+  .phase-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .token-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 3px 0;
+    animation: fadeSlide 0.2s ease forwards;
+  }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .token-word {
+    color: var(--text);
+    min-width: 90px;
+    font-weight: 500;
+  }
+
+  .token-arrow { color: var(--text-dim); }
+
+  .token-type {
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+
+  .type-ACTION       { background: rgba(108,99,255,0.2); color: #9b94ff; }
+  .type-NEGATION     { background: rgba(255,79,106,0.2); color: #ff8096; }
+  .type-SUBJECT      { background: rgba(0,229,160,0.15); color: #00e5a0; }
+  .type-RELATION     { background: rgba(255,169,64,0.2); color: #ffa940; }
+  .type-NUMBER       { background: rgba(64,200,255,0.15); color: #40c8ff; }
+  .type-MERIDIEM     { background: rgba(64,200,255,0.1);  color: #80d8ff; }
+  .type-TIME_KEYWORD { background: rgba(64,200,255,0.15); color: #40c8ff; }
+  .type-IF           { background: rgba(200,64,255,0.15); color: #d080ff; }
+  .type-CONNECTOR    { background: rgba(180,180,180,0.1); color: #aaa; }
+  .type-COND_SUBJECT { background: rgba(255,200,64,0.1);  color: #ffc840; }
+  .type-COND_VERB    { background: rgba(180,180,180,0.1); color: #aaa; }
+  .type-COND_STATE   { background: rgba(0,229,160,0.1);   color: #00e5a0; }
+  .type-COND_VALUE   { background: rgba(200,64,255,0.15); color: #d080ff; }
+  .type-UNKNOWN      { background: rgba(255,79,106,0.15); color: #ff4f6a; }
+
+  /* AST tree */
+  .ast-tree {
+    font-size: 11px;
+    line-height: 1.8;
+  }
+
+  .ast-node {
+    color: var(--text);
+    animation: fadeSlide 0.25s ease forwards;
+  }
+
+  .ast-key   { color: var(--text-muted); }
+  .ast-val   { color: var(--green); }
+  .ast-val-block { color: var(--red); font-weight: 600; }
+  .ast-val-allow { color: var(--green); font-weight: 600; }
+
+  /* JSON output */
+  .json-key   { color: var(--amber); }
+  .json-str   { color: var(--green); }
+  .json-num   { color: #40c8ff; }
+  .json-punct { color: var(--text-dim); }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .badge-ok  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,229,160,0.3); }
+  .badge-err { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(255,79,106,0.3); }
+  .badge-wait{ background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,169,64,0.3); }
+
+  /* ── ACTIVITY FEED ── */
+  .feed-panel {
+    position: relative;
+  }
+
+  .device-status {
+    padding: 8px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .device-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .device-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s;
+  }
+
+  .device-dot.on { background: var(--green); box-shadow: 0 0 5px var(--green); }
+
+  #dnd-toggle, #focus-toggle {
+    cursor: pointer;
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    transition: all 0.15s;
+  }
+
+  #dnd-toggle:hover, #focus-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  #dnd-toggle.active   { background: var(--red-dim);   border-color: var(--red);   color: var(--red); }
+  #focus-toggle.active { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+
+  .activity-feed {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+
+  .activity-feed::-webkit-scrollbar { width: 4px; }
+  .activity-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    animation: slideIn 0.3s ease forwards;
+    position: relative;
+    overflow: hidden;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .activity-item.blocked {
+    border-color: rgba(255,79,106,0.3);
+    background: var(--red-dim);
+  }
+
+  .activity-item.blocked::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--red);
+  }
+
+  .activity-item.allowed::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--green);
+  }
+
+  .activity-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .activity-body { flex: 1; min-width: 0; }
+
+  .activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2px;
+  }
+
+  .activity-sender {
+    font-weight: 500;
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  .activity-time {
+    font-size: 10px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  .activity-preview {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .activity-blocked-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--red);
+    font-weight: 500;
+  }
+
+  /* ── POLICY PANEL ── */
+  .policy-list {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  .policy-list::-webkit-scrollbar { width: 4px; }
+  .policy-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .policy-card {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    animation: slideIn 0.25s ease forwards;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .policy-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+  }
+
+  .policy-card.block-card::before { background: var(--red); }
+  .policy-card.allow-card::before { background: var(--green); }
+
+  .policy-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .policy-action {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .policy-action.block { color: var(--red); }
+  .policy-action.allow { color: var(--green); }
+
+  .policy-delete {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 4px;
+    transition: color 0.15s;
+    font-family: var(--mono);
+  }
+
+  .policy-delete:hover { color: var(--red); }
+
+  .policy-detail {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .policy-detail span { color: var(--text); }
+
+  .policy-cond {
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: rgba(200,64,255,0.08);
+    border-radius: 4px;
+    border: 1px solid rgba(200,64,255,0.15);
+    font-size: 10px;
+    color: #d080ff;
+  }
+
+  .no-policy {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  /* ── FEED CONTROLS ── */
+  .feed-controls {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .feed-btn {
+    padding: 5px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .feed-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .feed-btn.running {
+    border-color: var(--green);
+    color: var(--green);
+    background: var(--green-dim);
+  }
+
+  .feed-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  /* ── ERROR PANEL ── */
+  .error-msg {
+    padding: 10px 12px;
+    background: var(--red-dim);
+    border: 1px solid rgba(255,79,106,0.3);
+    border-radius: 6px;
+    color: var(--red);
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 8px 12px;
+  }
+
+  /* ── EMPTY STATE ── */
+  .phase-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    color: var(--text-dim);
+    font-size: 11px;
+    gap: 6px;
+  }
+
+  .phase-empty-icon { font-size: 24px; opacity: 0.3; }
+
+  /* scrollbar global */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <div>
+        <div class="logo-text">Personal Boundary Compiler</div>
+        <div class="logo-sub">v2.0 · Lexical · Syntax · Semantic</div>
+      </div>
+    </div>
+    <div class="header-clock">
+      <div id="clock-time">00:00:00</div>
+      <div id="clock-date"></div>
+    </div>
+  </header>
+
+  <!-- COMPILER INPUT -->
+  <div class="panel compiler-panel">
+    <div class="panel-header">
+      <div class="panel-dot red"></div>
+      <div class="panel-dot amber"></div>
+      <div class="panel-dot green"></div>
+      <span class="panel-title">Rule Input</span>
+    </div>
+    <div class="input-area">
+      <div class="input-label">Enter a boundary rule in natural English</div>
+      <div class="input-row">
+        <input id="rule-input" type="text"
+          placeholder="e.g.  Block notifications after 10 PM if device is on DND"
+          autocomplete="off" spellcheck="false" />
+        <button class="compile-btn" onclick="compile()">Compile →</button>
+      </div>
+      <div class="examples">
+        <span class="example-chip" onclick="setExample(this)">Do not message after 10 PM</span>
+        <span class="example-chip" onclick="setExample(this)">Shut notifications before 9 AM</span>
+        <span class="example-chip" onclick="setExample(this)">Block calls between 2 PM and 5 PM</span>
+        <span class="example-chip" onclick="setExample(this)">Mute all after 11 PM if device is on DND</span>
+        <span class="example-chip" onclick="setExample(this)">Silence notifications before 8 AM if focus mode is active</span>
+        <span class="example-chip" onclick="setExample(this)">Allow messages after midnight</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE PANELS -->
+  <div class="phases-row">
+
+    <!-- Phase 1: Lexer -->
+    <div class="phase-panel" id="phase1">
+      <div class="panel-header">
+        <span class="phase-num">PHASE 01</span>
+        <span class="panel-title" style="margin-left:4px">Lexical Analysis</span>
+      </div>
+      <div class="phase-body" id="phase1-body">
+        <div class="phase-empty"><div class="phase-empty-icon">◈</div>awaiting input…</div>
+      </div>
+    </div>
+
+    <!-- Phase 2: Parser -->
+    <div class="phase-panel" id="phase2">
+      <div class="panel-header">
+        <span class="phase-num">PHASE 02</span>
+        <span class="panel-title" style="margin-left:4px">Syntax / AST</span>
+      </div>
+      <div class="phase-body" id="phase2-body">
+        <div class="phase-empty"><div class="phase-empty-icon">◈</div>awaiting tokens…</div>
+      </div>
+    </div>
+
+    <!-- Phase 3: Semantic -->
+    <div class="phase-panel" id="phase3">
+      <div class="panel-header">
+        <span class="phase-num">PHASE 03</span>
+        <span class="panel-title" style="margin-left:4px">Semantic Analysis</span>
+      </div>
+      <div class="phase-body" id="phase3-body">
+        <div class="phase-empty"><div class="phase-empty-icon">◈</div>awaiting AST…</div>
+      </div>
+    </div>
+
+    <!-- Phase 4: Output -->
+    <div class="phase-panel" id="phase4">
+      <div class="panel-header">
+        <span class="phase-num">PHASE 04</span>
+        <span class="panel-title" style="margin-left:4px">JSON Policy</span>
+      </div>
+      <div class="phase-body" id="phase4-body">
+        <div class="phase-empty"><div class="phase-empty-icon">◈</div>awaiting semantic…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- POLICY LIST -->
+  <div class="panel feed-panel">
+    <div class="panel-header">
+      <div class="panel-dot green"></div>
+      <span class="panel-title">Active Policies</span>
+      <span id="policy-count" style="margin-left:auto; font-size:10px; color:var(--text-dim)">0 rules</span>
+    </div>
+    <div class="policy-list" id="policy-list">
+      <div class="no-policy">No rules compiled yet.<br>Enter a rule above and hit Compile.</div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY FEED -->
+  <div class="panel feed-panel">
+    <div class="panel-header">
+      <div class="panel-dot green" id="feed-live-dot"></div>
+      <span class="panel-title">Activity Feed</span>
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <div class="device-badge">
+          <div class="device-dot" id="dnd-dot"></div>
+          <button id="dnd-toggle" onclick="toggleDND()">DND: OFF</button>
+        </div>
+        <div class="device-badge">
+          <div class="device-dot" id="focus-dot"></div>
+          <button id="focus-toggle" onclick="toggleFocus()">Focus: OFF</button>
+        </div>
+      </div>
+    </div>
+    <div class="activity-feed" id="activity-feed">
+      <div class="phase-empty" style="height:80px">
+        <div class="phase-empty-icon">📱</div>
+        start the simulator to see incoming activity
+      </div>
+    </div>
+    <div class="feed-controls">
+      <button class="feed-btn" id="sim-btn" onclick="toggleSimulator()">▶ Start Simulator</button>
+      <button class="feed-btn" onclick="clearFeed()">⟳ Clear Feed</button>
+      <span class="feed-status" id="feed-status">idle</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock-time').textContent =
+    now.toLocaleTimeString('en-US', { hour12: false });
+  document.getElementById('clock-date').textContent =
+    now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ══════════════════════════════════════════════════════════════════
+//  COMPILER (runs entirely in-browser JS, mirrors the C++ logic)
+//  LESSON: This is the "frontend runtime" of your compiler.
+//  The same algorithm we wrote in C++ is re-implemented here in JS
+//  so the UI can work without a backend server.
+//  In a real app, you'd call a backend API that runs the C++ binary.
+// ══════════════════════════════════════════════════════════════════
+
+// ── TOKEN TYPES ──────────────────────────────────────────────────
+const T = {
+  ACTION:'ACTION', NEGATION:'NEGATION', SUBJECT:'SUBJECT',
+  RELATION:'RELATION', NUMBER:'NUMBER', MERIDIEM:'MERIDIEM',
+  TIME_KEYWORD:'TIME_KEYWORD', IF_KW:'IF', CONNECTOR:'CONNECTOR',
+  COND_SUBJECT:'COND_SUBJECT', COND_VERB:'COND_VERB',
+  COND_STATE:'COND_STATE', COND_VALUE:'COND_VALUE', UNKNOWN:'UNKNOWN'
+};
+
+// ── LEXER ────────────────────────────────────────────────────────
+function lexer(input) {
+  const words = input.trim().split(/\s+/);
+  const tokens = [];
+
+  for (let i = 0; i < words.length; i++) {
+    let w = words[i].replace(/[,.!?]$/, '');
+    const up = w.toUpperCase();
+
+    if (['BLOCK','ALLOW','MUTE','SHUT','SILENCE','ENABLE','DISABLE'].includes(up)) {
+      tokens.push({ value: up, type: T.ACTION });
+    }
+    else if (['MESSAGE','CALL','NOTIFY'].includes(up) &&
+             tokens.length && tokens[tokens.length-1].type === T.NEGATION) {
+      // communication verb after negation → pop negations, emit BLOCK + SUBJECT
+      while (tokens.length && tokens[tokens.length-1].type === T.NEGATION)
+        tokens.pop();
+      tokens.push({ value: 'BLOCK', type: T.ACTION });
+      tokens.push({ value: up + 'S', type: T.SUBJECT });
+    }
+    else if (['NOT','NO',"DON'T",'DO'].includes(up)) {
+      tokens.push({ value: up, type: T.NEGATION });
+    }
+    else if (['MESSAGE','MESSAGES','CALL','CALLS','NOTIFICATION','NOTIFICATIONS',
+              'ALERT','ALERTS','ALL','EVERYTHING'].includes(up)) {
+      tokens.push({ value: up, type: T.SUBJECT });
+    }
+    else if (['AFTER','BEFORE','BETWEEN','DURING'].includes(up)) {
+      tokens.push({ value: up, type: T.RELATION });
+    }
+    else if (['AM','PM'].includes(up)) {
+      tokens.push({ value: up, type: T.MERIDIEM });
+    }
+    else if (['MIDNIGHT','NOON','SUNRISE','SUNSET'].includes(up)) {
+      tokens.push({ value: up, type: T.TIME_KEYWORD });
+    }
+    else if (up === 'IF') {
+      tokens.push({ value: up, type: T.IF_KW });
+    }
+    else if (['AND','OR'].includes(up)) {
+      tokens.push({ value: up, type: T.CONNECTOR });
+    }
+    else if (['DEVICE','PHONE','SCREEN','FOCUS','MODE','APP'].includes(up)) {
+      tokens.push({ value: up, type: T.COND_SUBJECT });
+    }
+    else if (['IS','ARE','HAS'].includes(up)) {
+      tokens.push({ value: up, type: T.COND_VERB });
+    }
+    else if (['ON','OFF','ACTIVE','ENABLED','DISABLED','LOCKED'].includes(up)) {
+      tokens.push({ value: up, type: T.COND_STATE });
+    }
+    else if (['DND','SILENT','VIBRATE','FOCUS_MODE','SLEEP','DRIVING','WORK'].includes(up)) {
+      tokens.push({ value: up, type: T.COND_VALUE });
+    }
+    else if (/^\d/.test(w)) {
+      tokens.push({ value: w, type: T.NUMBER });
+    }
+    else {
+      tokens.push({ value: up, type: T.UNKNOWN });
+    }
+  }
+  return tokens;
+}
+
+// ── PARSER ───────────────────────────────────────────────────────
+function parser(tokens) {
+  // Filter unknowns before parsing
+  const toks = tokens.filter(t => t.type !== T.UNKNOWN);
+  let cur = 0;
+
+  const peek = () => cur < toks.length ? toks[cur] : { value:'EOF', type:T.UNKNOWN };
+  const advance = () => cur < toks.length ? toks[cur++] : { value:'EOF', type:T.UNKNOWN };
+  const check = t => peek().type === t;
+  const match = t => { if(check(t)){ advance(); return true; } return false; };
+  const err = msg => { throw new Error('Syntax Error: ' + msg + ' (at "' + peek().value + '")'); };
+
+  const rule = { action:'', negated:false, rawAction:'', subjects:[], timeClause:{}, hasCondition:false, conditions:[] };
+
+  // Action
+  rule.negated = false;
+  if (check(T.NEGATION) && peek().value === 'DO') {
+    advance();
+    if (check(T.NEGATION) && peek().value === 'NOT') { advance(); rule.negated = true; }
+  } else if (check(T.NEGATION)) {
+    advance(); rule.negated = true;
+  }
+
+  if (!check(T.ACTION)) err('Expected action word (BLOCK, ALLOW, MUTE, SHUT, SILENCE)');
+  const act = advance();
+  rule.rawAction = act.value;
+  rule.action = ['ALLOW','ENABLE'].includes(act.value) ? 'ALLOW' : 'BLOCK';
+  if (rule.negated) rule.action = rule.action === 'BLOCK' ? 'ALLOW' : 'BLOCK';
+
+  // Subject
+  if (!check(T.SUBJECT)) err('Expected subject (MESSAGES, CALLS, NOTIFICATIONS, ALL)');
+  while (check(T.SUBJECT)) {
+    rule.subjects.push(advance().value);
+    if (check(T.CONNECTOR) && peek().value === 'AND') advance();
+  }
+
+  // Time clause
+  if (!check(T.RELATION)) err('Expected time relation (AFTER, BEFORE, BETWEEN, DURING)');
+  const relation = advance().value;
+  const parseTimeExpr = () => {
+    if (check(T.TIME_KEYWORD)) {
+      const kw = advance().value;
+      const map = { MIDNIGHT:{h:0,m:0}, NOON:{h:12,m:0}, SUNRISE:{h:6,m:0}, SUNSET:{h:18,m:0} };
+      const t = map[kw] || {h:0,m:0};
+      return { hour:t.h, minute:t.m, raw:kw.toLowerCase() };
+    }
+    if (!check(T.NUMBER)) err('Expected time value (e.g. 10 PM, 9:30 AM, midnight)');
+    const numStr = advance().value;
+    let h = 0, m = 0;
+    if (numStr.includes(':')) { [h,m] = numStr.split(':').map(Number); }
+    else { h = parseInt(numStr); }
+    let raw = numStr;
+    if (check(T.MERIDIEM)) {
+      const mer = advance().value;
+      raw += ' ' + mer;
+      if (mer === 'PM' && h !== 12) h += 12;
+      if (mer === 'AM' && h === 12) h = 0;
+    }
+    if (h < 0 || h > 23 || m < 0 || m > 59) err('Time out of range: ' + raw);
+    return { hour:h, minute:m, raw };
+  };
+
+  const timeA = parseTimeExpr();
+  let timeB = null;
+  if (relation === 'BETWEEN') {
+    if (check(T.CONNECTOR) && peek().value === 'AND') advance();
+    timeB = parseTimeExpr();
+  }
+  rule.timeClause = { relation, timeA, timeB, hasTwoTimes: !!timeB };
+
+  // Condition (optional)
+  if (check(T.IF_KW)) {
+    advance();
+    rule.hasCondition = true;
+    do {
+      const ce = { subject:'', stateVerb:'', modifier:'', value:'' };
+      let subjParts = [];
+      while (check(T.COND_SUBJECT)) subjParts.push(advance().value);
+      ce.subject = subjParts.join(' ');
+      if (check(T.COND_VERB))  ce.stateVerb = advance().value;
+      if (check(T.COND_STATE)) ce.modifier = advance().value;
+      if (check(T.COND_VALUE)) ce.value = advance().value;
+      rule.conditions.push(ce);
+      if (check(T.CONNECTOR)) advance(); else break;
+    } while (true);
+  }
+
+  return rule;
+}
+
+// ── SEMANTIC ANALYSER ────────────────────────────────────────────
+function semantic(rule) {
+  const errors = [];
+  const warnings = [];
+
+  const A = rule.timeClause.timeA;
+  if (A.hour < 0 || A.hour > 23)
+    errors.push('Hour ' + A.hour + ' is out of range (0–23)');
+  if (A.minute < 0 || A.minute > 59)
+    errors.push('Minute ' + A.minute + ' is out of range (0–59)');
+
+  if (rule.timeClause.hasTwoTimes) {
+    const B = rule.timeClause.timeB;
+    const minA = A.hour*60 + A.minute;
+    const minB = B.hour*60 + B.minute;
+    if (minA === minB)
+      errors.push('BETWEEN start and end times are the same (' + A.raw + ')');
+    if (minA > minB)
+      warnings.push('Cross-midnight range detected (' + A.raw + ' → ' + B.raw + ')');
+  }
+
+  const hasAll = rule.subjects.some(s => s==='ALL'||s==='EVERYTHING');
+  if (hasAll && rule.subjects.length > 1)
+    warnings.push("'ALL' makes other subjects redundant");
+
+  if (rule.hasCondition) {
+    for (const c of rule.conditions) {
+      if (!c.subject && !c.value && !c.modifier)
+        errors.push('Condition is incomplete — expected a device state or mode');
+    }
+  }
+
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+// ── JSON EMITTER ─────────────────────────────────────────────────
+function emitJSON(rule) {
+  const obj = {
+    action: rule.action,
+    subjects: rule.subjects,
+    timeClause: {
+      relation: rule.timeClause.relation,
+      timeA: rule.timeClause.timeA
+    }
+  };
+  if (rule.timeClause.hasTwoTimes) obj.timeClause.timeB = rule.timeClause.timeB;
+  if (rule.hasCondition) obj.conditions = rule.conditions;
+  return JSON.stringify(obj, null, 2);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  POLICY ENGINE (checks current time against active rules)
+//  LESSON: This is the "runtime" of the compiler output.
+//  The JSON policy is consumed by this engine to make real decisions.
+// ══════════════════════════════════════════════════════════════════
+let policies = [];
+let dndOn = false;
+let focusOn = false;
+
+function checkPolicy(eventType) {
+  const now = new Date();
+  const curMin = now.getHours() * 60 + now.getMinutes();
+
+  for (const p of policies) {
+    // Check subject match
+    const subjectMatch = p.subjects.some(s =>
+      s === 'ALL' || s === 'EVERYTHING' ||
+      s.includes(eventType.toUpperCase()) ||
+      eventType.toUpperCase().includes(s.replace(/S$/, ''))
+    );
+    if (!subjectMatch) continue;
+
+    // Check time match
+    const A = p.timeClause.timeA;
+    const Amin = A.hour * 60 + A.minute;
+    let timeMatch = false;
+
+    if (p.timeClause.relation === 'AFTER') {
+      timeMatch = curMin >= Amin;
+    } else if (p.timeClause.relation === 'BEFORE') {
+      timeMatch = curMin < Amin;
+    } else if (p.timeClause.relation === 'BETWEEN' && p.timeClause.timeB) {
+      const B = p.timeClause.timeB;
+      const Bmin = B.hour * 60 + B.minute;
+      if (Amin <= Bmin) {
+        timeMatch = curMin >= Amin && curMin < Bmin;
+      } else {
+        // cross-midnight
+        timeMatch = curMin >= Amin || curMin < Bmin;
+      }
+    } else if (p.timeClause.relation === 'DURING') {
+      timeMatch = true; // simplified
+    }
+
+    if (!timeMatch) continue;
+
+    // Check condition
+    if (p.hasCondition && p.conditions.length > 0) {
+      const condMet = p.conditions.every(c => {
+        const valUp = (c.value || '').toUpperCase();
+        const modUp = (c.modifier || '').toUpperCase();
+        if (valUp === 'DND' || (modUp === 'ON' && valUp === 'DND')) return dndOn;
+        if (valUp === 'FOCUS' || valUp === 'FOCUS_MODE' || 
+            (c.subject && c.subject.includes('FOCUS') && modUp === 'ACTIVE')) return focusOn;
+        if (modUp === 'ON' && dndOn) return true;
+        if (modUp === 'ACTIVE' && focusOn) return true;
+        return true; // unknown condition: default allow
+      });
+      if (!condMet) continue;
+    }
+
+    return { blocked: p.action === 'BLOCK', policy: p };
+  }
+  return { blocked: false, policy: null };
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  UI RENDERING
+// ══════════════════════════════════════════════════════════════════
+
+function setExample(el) {
+  document.getElementById('rule-input').value = el.textContent;
+  compile();
+}
+
+function markPhase(id, state) {
+  const el = document.getElementById(id);
+  el.classList.remove('active','success','error');
+  if (state) el.classList.add(state);
+}
+
+function compile() {
+  const input = document.getElementById('rule-input').value.trim();
+  if (!input) return;
+
+  // Reset phases
+  ['phase1','phase2','phase3','phase4'].forEach(id => markPhase(id, ''));
+
+  // ── PHASE 1: LEXICAL ANALYSIS ──────────────────────────────────
+  markPhase('phase1', 'active');
+  let tokens;
+  try {
+    tokens = lexer(input);
+    const b1 = document.getElementById('phase1-body');
+    b1.innerHTML = '';
+    tokens.forEach((t, i) => {
+      setTimeout(() => {
+        const row = document.createElement('div');
+        row.className = 'token-row';
+        row.innerHTML = `<span class="token-word">${t.value}</span>
+          <span class="token-arrow">→</span>
+          <span class="token-type type-${t.type}">${t.type}</span>`;
+        b1.appendChild(row);
+      }, i * 40);
+    });
+    setTimeout(() => markPhase('phase1', 'success'), tokens.length * 40 + 100);
+  } catch(e) {
+    document.getElementById('phase1-body').innerHTML =
+      `<div class="error-msg">Lexer error: ${e.message}</div>`;
+    markPhase('phase1', 'error');
+    return;
+  }
+
+  // ── PHASE 2: SYNTAX ANALYSIS ───────────────────────────────────
+  setTimeout(() => {
+    markPhase('phase2', 'active');
+    let rule;
+    try {
+      rule = parser(tokens);
+      const b2 = document.getElementById('phase2-body');
+      const fmtTime = (t) => `${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`;
+      const actionClass = rule.action === 'BLOCK' ? 'ast-val-block' : 'ast-val-allow';
+      b2.innerHTML = `<div class="ast-tree">
+        <div class="ast-node">◆ <span class="ast-key">PolicyRule</span></div>
+        <div style="padding-left:12px">
+          <div>├ <span class="ast-key">action  </span> <span class="${actionClass}">${rule.action}</span>
+            <span style="color:var(--text-dim);font-size:10px"> (raw: ${rule.rawAction}, neg: ${rule.negated})</span></div>
+          <div>├ <span class="ast-key">subjects</span> <span class="ast-val">[${rule.subjects.join(', ')}]</span></div>
+          <div>├ <span class="ast-key">relation</span> <span class="ast-val">${rule.timeClause.relation}</span></div>
+          <div>├ <span class="ast-key">time A  </span> <span class="ast-val">${rule.timeClause.timeA.raw}</span>
+            <span style="color:var(--text-dim);font-size:10px"> → ${fmtTime(rule.timeClause.timeA)}</span></div>
+          ${rule.timeClause.hasTwoTimes ? `
+          <div>├ <span class="ast-key">time B  </span> <span class="ast-val">${rule.timeClause.timeB.raw}</span>
+            <span style="color:var(--text-dim);font-size:10px"> → ${fmtTime(rule.timeClause.timeB)}</span></div>` : ''}
+          <div>└ <span class="ast-key">condition</span> <span class="ast-val">${rule.hasCondition ? rule.conditions.map(c => [c.subject,c.stateVerb,c.modifier,c.value].filter(Boolean).join(' ')).join(', ') : '—'}</span></div>
+        </div>
+      </div>`;
+      setTimeout(() => markPhase('phase2', 'success'), 200);
+
+      // ── PHASE 3: SEMANTIC ANALYSIS ─────────────────────────────
+      setTimeout(() => {
+        markPhase('phase3', 'active');
+        const result = semantic(rule);
+        const b3 = document.getElementById('phase3-body');
+        if (result.valid) {
+          b3.innerHTML = `<div style="margin-bottom:8px">
+            <span class="status-badge badge-ok">✓ valid</span>
+          </div>
+          <div style="line-height:2; font-size:11px; color:var(--text-muted)">
+            ${result.warnings.length ? result.warnings.map(w =>
+              `<div style="color:var(--amber)">⚠ ${w}</div>`).join('') : ''}
+            <div>action → <span style="color:var(--text)">${rule.action}</span></div>
+            <div>time   → ${rule.timeClause.relation}
+              <span style="color:var(--text)">${fmtTime(rule.timeClause.timeA)}</span>
+              ${rule.timeClause.hasTwoTimes ? '– <span style="color:var(--text)">' + fmtTime(rule.timeClause.timeB) + '</span>' : ''}
+            </div>
+            ${rule.hasCondition ? `<div>cond   → <span style="color:#d080ff">${rule.conditions.map(c=>[c.subject,c.stateVerb,c.modifier,c.value].filter(Boolean).join(' ')).join(' AND ')}</span></div>` : ''}
+          </div>`;
+          setTimeout(() => markPhase('phase3', 'success'), 200);
+
+          // ── PHASE 4: JSON OUTPUT ──────────────────────────────
+          setTimeout(() => {
+            markPhase('phase4', 'active');
+            const json = emitJSON(rule);
+            const b4 = document.getElementById('phase4-body');
+            // Syntax highlight the JSON
+            const highlighted = json
+              .replace(/("[\w]+")\s*:/g, '<span class="json-key">$1</span>:')
+              .replace(/:\s*(".*?")/g, ': <span class="json-str">$1</span>')
+              .replace(/:\s*(\d+)/g, ': <span class="json-num">$1</span>')
+              .replace(/([{}\[\],])/g, '<span class="json-punct">$1</span>');
+            b4.innerHTML = `<pre style="font-size:10px;line-height:1.6;white-space:pre-wrap">${highlighted}</pre>`;
+            setTimeout(() => markPhase('phase4', 'success'), 200);
+
+            // Add to policy list
+            addPolicy(rule);
+          }, 400);
+
+        } else {
+          b3.innerHTML = `<div style="margin-bottom:8px">
+            <span class="status-badge badge-err">✗ errors</span>
+          </div>` +
+            result.errors.map(e => `<div class="error-msg">${e}</div>`).join('');
+          markPhase('phase3', 'error');
+          markPhase('phase4', '');
+        }
+      }, 500);
+
+    } catch(e) {
+      document.getElementById('phase2-body').innerHTML =
+        `<div class="error-msg">${e.message}</div>`;
+      markPhase('phase2', 'error');
+    }
+  }, tokens.length * 40 + 200);
+}
+
+// Enter key support
+document.getElementById('rule-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') compile();
+});
+
+// ── POLICY LIST MANAGEMENT ────────────────────────────────────────
+let policyIdCounter = 0;
+
+function addPolicy(rule) {
+  const id = ++policyIdCounter;
+  policies.push({ id, ...rule });
+  renderPolicies();
+}
+
+function deletePolicy(id) {
+  policies = policies.filter(p => p.id !== id);
+  renderPolicies();
+}
+
+function renderPolicies() {
+  const list = document.getElementById('policy-list');
+  document.getElementById('policy-count').textContent = `${policies.length} rule${policies.length !== 1 ? 's' : ''}`;
+
+  if (!policies.length) {
+    list.innerHTML = '<div class="no-policy">No rules compiled yet.<br>Enter a rule above and hit Compile.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  [...policies].reverse().forEach(p => {
+    const card = document.createElement('div');
+    card.className = `policy-card ${p.action === 'BLOCK' ? 'block-card' : 'allow-card'}`;
+
+    const fmtTime = t => `${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`;
+    const timeStr = p.timeClause.hasTwoTimes
+      ? `${fmtTime(p.timeClause.timeA)} – ${fmtTime(p.timeClause.timeB)}`
+      : fmtTime(p.timeClause.timeA);
+
+    const condStr = p.hasCondition
+      ? `<div class="policy-cond">IF ${p.conditions.map(c => [c.subject,c.stateVerb,c.modifier,c.value].filter(Boolean).join(' ')).join(' AND ')}</div>`
+      : '';
+
+    card.innerHTML = `
+      <div class="policy-card-header">
+        <span class="policy-action ${p.action.toLowerCase()}">${p.action}</span>
+        <button class="policy-delete" onclick="deletePolicy(${p.id})">✕</button>
+      </div>
+      <div class="policy-detail">
+        <span>${p.subjects.join(', ')}</span>
+        &nbsp; ${p.timeClause.relation} &nbsp;
+        <span>${timeStr}</span>
+        &nbsp;<span style="color:var(--text-dim);font-size:10px">(${p.timeClause.timeA.raw}${p.timeClause.hasTwoTimes ? ' – ' + p.timeClause.timeB.raw : ''})</span>
+      </div>
+      ${condStr}`;
+    list.appendChild(card);
+  });
+}
+
+// ── DND / FOCUS TOGGLES ───────────────────────────────────────────
+function toggleDND() {
+  dndOn = !dndOn;
+  const btn = document.getElementById('dnd-toggle');
+  const dot = document.getElementById('dnd-dot');
+  btn.textContent = `DND: ${dndOn ? 'ON' : 'OFF'}`;
+  btn.classList.toggle('active', dndOn);
+  dot.classList.toggle('on', dndOn);
+}
+
+function toggleFocus() {
+  focusOn = !focusOn;
+  const btn = document.getElementById('focus-toggle');
+  const dot = document.getElementById('focus-dot');
+  btn.textContent = `Focus: ${focusOn ? 'ON' : 'OFF'}`;
+  btn.classList.toggle('active', focusOn);
+  dot.classList.toggle('on', focusOn);
+}
+
+// ── ACTIVITY SIMULATOR ────────────────────────────────────────────
+let simInterval = null;
+let activityCount = 0;
+
+const SENDERS = ['Arjun M.', 'Priya S.', 'Rahul K.', 'Neha T.', 'Vikram P.',
+                 'Ananya B.', 'Rohan D.', 'Kavya R.', 'Siddharth N.', 'Meera L.'];
+
+const MESSAGE_BODIES = [
+  'Hey, are you free to talk?', 'Can we reschedule the meeting?',
+  'Did you see the latest updates?', 'Quick question about the project',
+  'Sending over the files now', "Hope you're doing well!",
+  'Check out this article', 'Meeting at 3 PM confirmed?',
+  'Need your approval on this', 'Happy birthday! 🎂'
+];
+
+const CALL_BODIES = ['Incoming voice call', 'Video call request', 'Conference call'];
+const NOTIF_BODIES = [
+  'New comment on your post', 'Your order has shipped', 'Daily summary ready',
+  'Reminder: Team standup in 15 min', 'Server alert: high CPU usage',
+  'Payment received: ₹2,400', 'New follower on your profile'
+];
+
+const EVENTS = [
+  { type: 'MESSAGE',      icon: '💬', label: 'iMessage' },
+  { type: 'MESSAGE',      icon: '📧', label: 'Email' },
+  { type: 'CALL',         icon: '📞', label: 'Phone' },
+  { type: 'NOTIFICATION', icon: '🔔', label: 'App Alert' },
+  { type: 'MESSAGE',      icon: '💬', label: 'WhatsApp' },
+];
+
+function spawnActivity() {
+  const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+  const sender = SENDERS[Math.floor(Math.random() * SENDERS.length)];
+
+  let body;
+  if (event.type === 'MESSAGE') body = MESSAGE_BODIES[Math.floor(Math.random() * MESSAGE_BODIES.length)];
+  else if (event.type === 'CALL') body = CALL_BODIES[Math.floor(Math.random() * CALL_BODIES.length)];
+  else body = NOTIF_BODIES[Math.floor(Math.random() * NOTIF_BODIES.length)];
+
+  const { blocked, policy } = checkPolicy(event.type);
+  activityCount++;
+  updateFeedStatus();
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-US', { hour12:false, hour:'2-digit', minute:'2-digit' });
+
+  const feed = document.getElementById('activity-feed');
+
+  // Remove empty state
+  const empty = feed.querySelector('.phase-empty');
+  if (empty) empty.remove();
+
+  const item = document.createElement('div');
+  item.className = `activity-item ${blocked ? 'blocked' : 'allowed'}`;
+
+  item.innerHTML = `
+    <div class="activity-icon">${event.icon}</div>
+    <div class="activity-body">
+      <div class="activity-header">
+        <span class="activity-sender">${sender}</span>
+        <span class="activity-time">${timeStr}</span>
+      </div>
+      <div class="activity-preview">${body}</div>
+      ${blocked ? `<div class="activity-blocked-label">
+        <span>⊘</span>
+        BLOCKED · ${policy ? policy.subjects.join(', ') + ' ' + policy.timeClause.relation + ' ' + policy.timeClause.timeA.raw : 'policy'}
+      </div>` : `<div style="font-size:10px; color:var(--text-dim); margin-top:4px;">✓ delivered</div>`}
+    </div>`;
+
+  feed.insertBefore(item, feed.firstChild);
+
+  // Keep max 30 items
+  while (feed.children.length > 30) {
+    feed.removeChild(feed.lastChild);
+  }
+}
+
+function updateFeedStatus() {
+  const blocked = document.querySelectorAll('.activity-item.blocked').length;
+  const total = document.querySelectorAll('.activity-item').length;
+  document.getElementById('feed-status').textContent =
+    total > 0 ? `${blocked} blocked / ${total} total` : 'idle';
+}
+
+function toggleSimulator() {
+  const btn = document.getElementById('sim-btn');
+  const dot = document.getElementById('feed-live-dot');
+  if (simInterval) {
+    clearInterval(simInterval);
+    simInterval = null;
+    btn.textContent = '▶ Start Simulator';
+    btn.classList.remove('running');
+    dot.classList.remove('on');
+    document.getElementById('feed-status').textContent = 'stopped';
+  } else {
+    simInterval = setInterval(spawnActivity, 1800);
+    spawnActivity(); // immediate first event
+    btn.textContent = '⏹ Stop Simulator';
+    btn.classList.add('running');
+    dot.classList.add('on');
+  }
+}
+
+function clearFeed() {
+  const feed = document.getElementById('activity-feed');
+  feed.innerHTML = '<div class="phase-empty" style="height:80px"><div class="phase-empty-icon">📱</div>feed cleared</div>';
+  activityCount = 0;
+  document.getElementById('feed-status').textContent = 'idle';
+}
+</script>
+</body>
+</html>
